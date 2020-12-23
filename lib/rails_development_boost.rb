@@ -9,12 +9,13 @@ module RailsDevelopmentBoost
           Rails.application.config.reload_classes_only_on_change = true
           Reloader.hook_in!
         elsif defined?(ActionDispatch::Reloader) # post 0f7c970
-          ActionDispatch::Reloader.to_prepare(:prepend => true) { ActiveSupport::Dependencies.unload_modified_files! }
+          ActiveSupport::Reloader.to_prepare(:prepend => true) { ActiveSupport::Dependencies.unload_modified_files! }
         else
           ActionDispatch::Callbacks.before(:prepend => true)    { ActiveSupport::Dependencies.unload_modified_files! }
         end
         
         DependenciesPatch.enable_async_mode_by_default!
+        Rails.application.routes_reloader.reload!
       end
     end
     
@@ -30,6 +31,16 @@ module RailsDevelopmentBoost
     
     initializer 'dev_boost.setup', :after => :load_active_support do |app|
       if boost_enabled?
+        silenced = [
+          /alias_method_chain/
+        ]
+        silenced_expr = Regexp.new(silenced.join('|'))
+        ActiveSupport::Deprecation.behavior = lambda do |msg, stack|
+          unless msg =~ silenced_expr
+            ActiveSupport::Deprecation::DEFAULT_BEHAVIORS[:stderr].call(msg, stack)
+          end
+        end
+
         [DependenciesPatch, ReferencePatch, DescendantsTrackerPatch, ObservablePatch, ReferenceCleanupPatch, LoadablePatch].each(&:apply!)
         
         if defined?(AbstractController::Helpers)
@@ -38,7 +49,7 @@ module RailsDevelopmentBoost
           ActiveSupport.on_load(:action_controller) { ViewHelpersPatch.apply! }
         end
         
-        app.config.middleware.use 'RailsDevelopmentBoost::Async::Middleware'
+        app.config.middleware.insert_after(Rails::Rack::Logger, ::RailsDevelopmentBoost::Async::Middleware)
       end
     end
   end

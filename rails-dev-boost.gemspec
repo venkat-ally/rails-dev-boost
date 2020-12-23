@@ -17,6 +17,7 @@ Gem::Specification.new do |s|
   s.test_files = Dir.glob('test/**/*')
   
   s.add_dependency 'railties', '>= 3.0'
+  s.add_dependency 'alias_method_chain', '1.0.0'
 
   if s.respond_to? :specification_version then
     current_version = Gem::Specification::CURRENT_SPECIFICATION_VERSION
